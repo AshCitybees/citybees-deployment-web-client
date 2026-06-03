@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import {
   CheckCircle, GitMerge, Mail, Upload,
   Star, Calendar, Users, Bookmark, BookmarkPlus, Rocket,
@@ -90,7 +92,7 @@ export default function UATApprovalScreen({ onBack }) {
 
   const [includePlan, setIncludePlan] = useState(draft?.includePlan ?? false);
   const [planVersion, setPlanVersion] = useState(draft?.planVersion ?? '');
-  const [planDate, setPlanDate] = useState(draft?.planDate ?? '');
+  const [planDate, setPlanDate] = useState((draft?.planDate ?? '').replace(' ', 'T'));
   const [planTimezone, setPlanTimezone] = useState(draft?.planTimezone ?? '');
   const [prereqInput, setPrereqInput] = useState('');
   const [prerequisites, setPrerequisites] = useState(draft?.prerequisites ?? []);
@@ -205,7 +207,7 @@ export default function UATApprovalScreen({ onBack }) {
     setExtraRecipients(t.extraRecipients ?? []);
     setIncludePlan(t.includePlan ?? false);
     setPlanVersion(t.planVersion ?? '');
-    setPlanDate(t.planDate ?? '');
+    setPlanDate((t.planDate ?? '').replace(' ', 'T'));
     setPlanTimezone(t.planTimezone ?? '');
     setPrerequisites(t.prerequisites ?? []);
     setRollbackSteps(t.rollbackSteps ?? []);
@@ -363,7 +365,7 @@ export default function UATApprovalScreen({ onBack }) {
                 <LabeledInput label="Version" value={planVersion} onChange={setPlanVersion} hint="e.g. v2.4.1" />
                 <LabeledInput label="Timezone" value={planTimezone} onChange={setPlanTimezone} hint="e.g. GST +4" />
               </div>
-              <LabeledInput label="Planned Release Date" value={planDate} onChange={setPlanDate} hint="YYYY-MM-DD HH:MM" type="datetime-local" />
+              <DateTimePicker label="Planned Release Date" value={planDate} onChange={setPlanDate} />
               {gap(20)}
               <ArrayField
                 label="Prerequisites" icon={require_icon('checklist')} items={prerequisites}
@@ -595,6 +597,54 @@ function TemplateSection({ templateName, setTemplateName, templateNames, onSave,
   );
 }
 
+// ── DateTimePicker ────────────────────────────────────────────────────────────
+const DatePickerInput = React.forwardRef(({ value, onClick, placeholder }, ref) => (
+  <div
+    ref={ref}
+    onClick={onClick}
+    style={{
+      width: '100%', height: 46, borderRadius: 12, boxSizing: 'border-box',
+      background: 'var(--surface)', border: '1.5px solid var(--border)',
+      color: value ? 'var(--text-primary)' : 'var(--text-muted)',
+      fontSize: 13, padding: '0 14px', display: 'flex', alignItems: 'center',
+      justifyContent: 'space-between', cursor: 'pointer',
+    }}
+  >
+    <span>{value || placeholder}</span>
+    <Calendar size={15} color="var(--text-muted)" />
+  </div>
+));
+
+function DateTimePicker({ label, value, onChange }) {
+  const dateVal = value ? new Date(value) : null;
+  const handleChange = (date) => {
+    if (!date) { onChange(''); return; }
+    const pad = n => String(n).padStart(2, '0');
+    onChange(`${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`);
+  };
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5 }}>{label}</div>
+      <div style={{ width: '100%' }}>
+        <DatePicker
+          selected={dateVal}
+          onChange={handleChange}
+          showTimeSelect
+          timeFormat="HH:mm"
+          timeIntervals={15}
+          dateFormat="dd/MM/yyyy HH:mm"
+          placeholderText="Select date & time…"
+          customInput={<DatePickerInput />}
+          popperPlacement="bottom-start"
+          popperProps={{ strategy: 'fixed' }}
+          wrapperClassName="datepicker-full-width"
+        />
+      </div>
+      <style>{`.datepicker-full-width { width: 100% !important; display: block !important; }`}</style>
+    </div>
+  );
+}
+
 function LabeledInput({ label, value, onChange, hint, type = 'text' }) {
   return (
     <div>
@@ -667,7 +717,7 @@ function TriggerConfirmDialog({ open, onClose, onConfirm, selectedMods, features
               <Calendar size={11} color="var(--accent)" />
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>Release Plan: {releasePlan.version}</span>
             </div>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{releasePlan.plannedDateTime}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{releasePlan.plannedDateTime?.replace('T', ' ')}</span>
           </div>
         )}
 

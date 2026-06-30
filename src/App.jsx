@@ -5,6 +5,9 @@ import UATApprovalScreen from './screens/UATApprovalScreen.jsx';
 import WACProdSyncScreen from './screens/WACProdSyncScreen.jsx';
 import SettingsScreen from './screens/SettingsScreen.jsx';
 import RunHistoryScreen from './screens/RunHistoryScreen.jsx';
+import DeploymentsScreen from './screens/DeploymentsScreen.jsx';
+import UsersAppsScreen from './screens/UsersAppsScreen.jsx';
+import BackupScreen from './screens/BackupScreen.jsx';
 
 export default function App() {
   const [screen, setScreen] = useState('home');
@@ -16,6 +19,9 @@ export default function App() {
         {screen === 'home'    && <HomeScreen onNavigate={setScreen} />}
         {screen === 'uat'     && <UATApprovalScreen onBack={() => setScreen('home')} />}
         {screen === 'wac'     && <WACProdSyncScreen onBack={() => setScreen('home')} />}
+        {screen === 'deployments' && <DeploymentsScreen />}
+        {screen === 'usersapps' && <UsersAppsScreen />}
+        {screen === 'backups' && <BackupScreen />}
         {screen === 'settings'&& <SettingsScreen    onBack={() => setScreen('home')} />}
         {screen === 'history' && <RunHistoryScreen  onBack={() => setScreen('home')} />}
       </main>

@@ -1,13 +1,16 @@
 import React from 'react';
 import {
   Home, CheckCircle, RefreshCw, History,
-  Settings, Zap, GitBranch,
+  Settings, Zap, GitBranch, Rocket, Users, Database,
 } from 'lucide-react';
 
 const NAV = [
   { id: 'home',     label: 'Dashboard',   icon: Home },
   { id: 'uat',      label: 'UAT Approval', icon: CheckCircle },
   { id: 'wac',      label: 'WAC Prod Sync', icon: RefreshCw },
+  { id: 'deployments', label: 'Deployments', icon: Rocket },
+  { id: 'usersapps', label: 'Users & Apps', icon: Users },
+  { id: 'backups',  label: 'Backups', icon: Database },
 ];
 
 const SECONDARY_NAV = [

@@ -9,6 +9,35 @@ const recordHistory = (type, status, message, features = []) => {
   SettingsService.addRunEntry({ type, status, message, features, timestamp: new Date().toISOString() });
 };
 
+// Fire a long-running backup job. We keep the request open with a long timeout
+// (it helps keep the Function instance warm), but the UI does NOT depend on this
+// response — progress and the final result are read via the status endpoint, so
+// closing or refreshing the tab never loses the run.
+const startJob = async (url, label) => {
+  try {
+    const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(7200000) });
+    let payload = {};
+    try { payload = await res.json(); } catch {}
+    if (res.status === 409) return { status: 'running', message: payload.error || 'Already running.' };
+    const ok = res.status === 200 && payload.ok !== false;
+    recordHistory(label, ok ? 'success' : 'error', ok ? 'Completed' : (payload.error || `HTTP ${res.status}`));
+    return { status: ok ? 'success' : 'error', httpStatus: res.status, ...payload };
+  } catch (e) {
+    // AbortError/timeout/refresh: the server keeps running; polling resolves it.
+    return { status: 'detached', message: e.message };
+  }
+};
+
+const fetchStatus = async (url) => {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (res.status !== 200) return { state: 'error', message: `HTTP ${res.status}` };
+    return await res.json();
+  } catch (e) {
+    return { state: 'unreachable', message: e.message };
+  }
+};
+
 const crudRequest = async (url, method, body) => {
   try {
     const res = await fetch(url, {
@@ -127,47 +156,23 @@ export const ApiService = {
     return crudRequest(`${getBase()}/api/manage_records/${entity}/${id}`, 'DELETE');
   },
 
-  // Manual production DB backup → SharePoint.
-  // Backend dumps prod PostgreSQL on the VM and chunk-uploads to SharePoint,
-  // then emails the result. Runs a few minutes; we wait up to 30.
-  async triggerDbBackup() {
-    try {
-      const res = await fetch(`${getBase()}/api/backup_db_to_sharepoint_manual`, {
-        method: 'POST',
-        signal: AbortSignal.timeout(1800000),
-      });
-      let payload = {};
-      try { payload = await res.json(); } catch {}
-      const ok = res.status === 200 && payload.ok !== false;
-      recordHistory('DB Backup', ok ? 'success' : 'error',
-        ok ? `${payload.fileName ?? 'backup'} uploaded to SharePoint` : (payload.error || `HTTP ${res.status}`));
-      return { status: ok ? 'success' : 'error', httpStatus: res.status, ...payload };
-    } catch (e) {
-      recordHistory('DB Backup', 'error', e.message);
-      return { status: 'error', message: e.message };
-    }
+  // Kick off a manual production DB backup. The job runs server-side and
+  // publishes progress to a status blob, so the UI tracks it by polling
+  // getDbBackupStatus() rather than waiting on this response — which means it
+  // survives a page refresh. Returns quickly on 409 if one is already running.
+  async startDbBackup() {
+    return startJob(`${getBase()}/api/backup_db_to_sharepoint_manual`, 'DB Backup');
+  },
+  async getDbBackupStatus() {
+    return fetchStatus(`${getBase()}/api/backup_db_to_sharepoint_status`);
   },
 
-  // Manual blob storage → SharePoint sync. Incremental (skips existing files),
-  // so reruns are fast. First run can be long; we wait up to 30 min and the
-  // backend resumes any partial run on the next trigger.
-  async triggerBlobSync() {
-    try {
-      const res = await fetch(`${getBase()}/api/sync_blobs_to_sharepoint_manual`, {
-        method: 'POST',
-        signal: AbortSignal.timeout(1800000),
-      });
-      let payload = {};
-      try { payload = await res.json(); } catch {}
-      const ok = res.status === 200 && payload.ok !== false;
-      const r = payload.result;
-      recordHistory('Blob Sync', ok ? 'success' : 'error',
-        r ? `${r.uploaded} uploaded, ${r.skipped} skipped${r.incomplete ? ' (partial)' : ''}` : (payload.error || `HTTP ${res.status}`));
-      return { status: ok ? 'success' : 'error', httpStatus: res.status, result: r, error: payload.error };
-    } catch (e) {
-      recordHistory('Blob Sync', 'error', e.message);
-      return { status: 'error', message: e.message };
-    }
+  // Kick off a manual blob → SharePoint sync (incremental; skips existing files).
+  async startBlobSync() {
+    return startJob(`${getBase()}/api/sync_blobs_to_sharepoint_manual`, 'Blob Sync');
+  },
+  async getBlobSyncStatus() {
+    return fetchStatus(`${getBase()}/api/sync_blobs_to_sharepoint_status`);
   },
 
   async triggerWACProdSync({ sendMail, createPR, pushCode, additionalRecipients = [], selectedModules }) {
